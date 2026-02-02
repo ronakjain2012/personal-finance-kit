@@ -171,8 +171,8 @@ export default function HomeScreen() {
         />
       </View>
       <ScrollView
-        style={[styles.container, { paddingBottom: insets.bottom + 60 }]}
-        contentContainerStyle={styles.content}
+        style={[styles.container]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 60 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
         <View style={styles.balanceCard}>

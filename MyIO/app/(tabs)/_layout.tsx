@@ -1,7 +1,7 @@
 // app/(tabs)/_layout.tsx — Tab layout: Home, History, Articles; lime-green + action button in footer.
 
 import { Tabs } from "expo-router"
-import { StyleSheet, Text, View } from "react-native"
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { HapticTab } from "@/components/haptic-tab"
@@ -49,7 +49,11 @@ export default function TabLayout() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      <SafeAreaView style={[styles.safe]} edges={["top"]}>
+      <KeyboardAvoidingView
+      style={[styles.container]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={insets.top + 60}>
         <View style={styles.container}>
           <Tabs
             screenOptions={{
@@ -108,6 +112,7 @@ export default function TabLayout() {
             />
           </Tabs>
         </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </SafeAreaProvider>
   )

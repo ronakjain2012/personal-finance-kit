@@ -6,14 +6,12 @@ import { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
+  View
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -176,10 +174,7 @@ export default function AddTransactionScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={insets.top + 60}>
+    <>
       <View style={styles.header}>
         <Pressable
           style={styles.backBtn}
@@ -436,8 +431,7 @@ export default function AddTransactionScreen() {
         onConfirm={handleCalculatorOk}
         onCancel={() => setCalculatorVisible(false)}
       />
-    </KeyboardAvoidingView>
-  )
+</>  )
 }
 
 const styles = StyleSheet.create({
