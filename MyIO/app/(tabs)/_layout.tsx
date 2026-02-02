@@ -1,33 +1,82 @@
-// app/(tabs)/_layout.tsx — Tab layout: Home, History; FAB for add.
+// app/(tabs)/_layout.tsx — Tab layout: Home, History, Articles; lime-green + action button in footer.
 
 import { Tabs } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { HapticTab } from "@/components/haptic-tab"
 import { IconSymbol } from "@/components/ui/icon-symbol"
-import { AppColors, Colors } from "@/constants/theme"
-import { useColorScheme } from "@/hooks/use-color-scheme"
+import { AppColors } from "@/constants/theme"
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context"
 
+const ACTIVE_LINE_WIDTH = 24
+const ACTIVE_LINE_HEIGHT = 2
+
+function TabIconWithLine({
+  focused,
+  color,
+  name,
+}: {
+  focused: boolean
+  color: string
+  name: "house.fill" | "list.bullet" | "lightbulb.fill"
+}) {
+  return (
+    <View style={styles.tabIconWrap}>
+      {focused && (
+        <View
+          style={[
+            styles.activeLine,
+            { backgroundColor: color },
+          ]}
+        />
+      )}
+      <IconSymbol size={26} name={name} color={color} />
+    </View>
+  )
+}
+
+function AddButtonIcon() {
+  return (
+    <View style={styles.addPill}>
+      <Text style={styles.addPillIcon}>+</Text>
+    </View>
+  )
+}
+
 export default function TabLayout() {
-  const colorScheme = useColorScheme()
+  const insets = useSafeAreaInsets()
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView className="flex-1 bg-white dark:bg-black" edges={["top"]}>
-        <View className="flex-1 bg-white dark:bg-black">
+      <SafeAreaView style={styles.safe} edges={["top"]}>
+        <View style={styles.container}>
           <Tabs
             screenOptions={{
-              tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
               headerShown: false,
+              tabBarActiveTintColor: AppColors.black,
+              tabBarInactiveTintColor: AppColors.gray,
+              tabBarStyle: [
+                styles.tabBar,
+                {
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  paddingBottom: Math.max(insets.bottom, 8),
+                  height: 56 + Math.max(insets.bottom, 8),
+                },
+              ],
+              tabBarLabelStyle: styles.tabBarLabel,
+              tabBarItemStyle: styles.tabBarItem,
               tabBarButton: HapticTab,
             }}>
             <Tabs.Screen
               name="index"
               options={{
                 title: "Home",
-                tabBarIcon: ({ color }) => (
-                  <IconSymbol size={28} name="house.fill" color={color} />
+                tabBarIcon: ({ focused, color }) => (
+                  <TabIconWithLine focused={focused} color={color} name="house.fill" />
                 ),
               }}
             />
@@ -35,18 +84,29 @@ export default function TabLayout() {
               name="history"
               options={{
                 title: "History",
-                tabBarIcon: ({ color }) => (
-                  <IconSymbol size={28} name="list.bullet" color={color} />
+                tabBarIcon: ({ focused, color }) => (
+                  <TabIconWithLine focused={focused} color={color} name="list.bullet" />
                 ),
               }}
             />
+            <Tabs.Screen
+              name="articles"
+              options={{
+                title: "Articles",
+                tabBarIcon: ({ focused, color }) => (
+                  <TabIconWithLine focused={focused} color={color} name="lightbulb.fill" />
+                ),
+              }}
+            />
+            <Tabs.Screen
+              name="add"
+              options={{
+                title: "",
+                tabBarIcon: () => <AddButtonIcon />,
+                tabBarLabel: () => null,
+              }}
+            />
           </Tabs>
-          <Pressable
-            style={styles.fab}
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction">
-            <Text style={styles.fabIcon}>+</Text>
-          </Pressable>
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -54,22 +114,48 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
+  safe: {
     flex: 1,
+    backgroundColor: AppColors.white,
   },
-  fab: {
-    position: "absolute",
-    bottom: 80,
-    alignSelf: "center",
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  container: {
+    flex: 1,
+    backgroundColor: AppColors.white,
+  },
+  tabBar: {
+    backgroundColor: AppColors.white,
+    borderTopWidth: 1,
+    borderTopColor: AppColors.gray + "20",
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  tabBarLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  tabBarItem: {
+    paddingTop: 8,
+  },
+  tabIconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeLine: {
+    width: ACTIVE_LINE_WIDTH,
+    height: ACTIVE_LINE_HEIGHT,
+    borderRadius: 1,
+    marginBottom: 4,
+  },
+  addPill: {
+    width: 48,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: AppColors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  fabIcon: {
-    fontSize: 28,
+  addPillIcon: {
+    fontSize: 22,
     fontWeight: "700",
     color: AppColors.black,
   },

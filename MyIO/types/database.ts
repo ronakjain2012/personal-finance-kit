@@ -114,10 +114,15 @@ export type AccountInsert = Omit<Account, 'id' | 'created_at' | 'updated_at'> & 
   created_at?: string;
   updated_at?: string;
 };
-export type TransactionInsert = Omit<Transaction, 'id' | 'created_at' | 'attachments'> & {
+export type TransactionInsert = Omit<
+  Transaction,
+  'id' | 'created_at' | 'attachments' | 'user_id' | 'metadata'
+> & {
   id?: string;
   created_at?: string;
   attachments?: string[];
+  user_id?: string;
+  metadata?: Record<string, unknown> | null;
 };
 export type NotificationInsert = Omit<Notification, 'id' | 'created_at'> & { id?: string; created_at?: string };
 

@@ -1,6 +1,7 @@
 // app/(tabs)/index.tsx — Home: balance, chart (income/expense), quick actions, categories, For you, History (last 10).
 
 import dayjs from "dayjs"
+import { router } from "expo-router"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
@@ -304,7 +305,10 @@ export default function HomeScreen() {
             <Text style={styles.emptyHint}>No transactions yet</Text>
           ) : (
             last10Transactions.map((tx) => (
-              <View key={tx.id} style={styles.historyRow}>
+              <Pressable
+                key={tx.id}
+                style={styles.historyRow}
+                onPress={() => router.push({ pathname: "/edit-transaction/[id]", params: { id: tx.id } })}>
                 <View
                   style={[
                     styles.historyIconWrap,
@@ -332,7 +336,7 @@ export default function HomeScreen() {
                   {tx.entry_type === "INCOME" ? "+ " : "− "}
                   {formatAmount(Number(tx.amount), currencySymbol)}
                 </Text>
-              </View>
+              </Pressable>
             ))
           )}
         </View>
