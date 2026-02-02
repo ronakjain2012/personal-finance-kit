@@ -1,5 +1,6 @@
 // app/(tabs)/index.tsx — Home: balance, chart (income/expense), quick actions, categories, For you, History (last 10).
 
+import { useFocusEffect } from "@react-navigation/native"
 import dayjs from "dayjs"
 import { router } from "expo-router"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -7,6 +8,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -80,27 +82,43 @@ export default function HomeScreen() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [currencySymbol, setCurrencySymbol] = useState("$")
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [quickActionsVisible, setQuickActionsVisible] = useState(false)
+
+  const loadData = useCallback(async () => {
+    if (!userId) return
+    const [accRes, catRes, txRes, prefRes, currRes] = await Promise.all([
+      listAccounts(userId),
+      listCategories(userId),
+      listTransactions(userId, { limit: 200 }),
+      findUserPreference(userId),
+      listCurrencies(),
+    ])
+    if (accRes.data) setAccounts(accRes.data.filter((a) => a.is_active))
+    if (catRes.data) setCategories(catRes.data)
+    if (txRes.data) setTransactions(txRes.data)
+    const code = prefRes.data?.default_currency ?? "USD"
+    const curr = currRes.data?.find((c) => c.code === code)
+    setCurrencySymbol(curr?.symbol ?? "$")
+    setLoading(false)
+    setRefreshing(false)
+  }, [userId])
 
   useEffect(() => {
     if (!userId) return
-    ;(async () => {
-      const [accRes, catRes, txRes, prefRes, currRes] = await Promise.all([
-        listAccounts(userId),
-        listCategories(userId),
-        listTransactions(userId, { limit: 200 }),
-        findUserPreference(userId),
-        listCurrencies(),
-      ])
-      if (accRes.data) setAccounts(accRes.data.filter((a) => a.is_active))
-      if (catRes.data) setCategories(catRes.data)
-      if (txRes.data) setTransactions(txRes.data)
-      const code = prefRes.data?.default_currency ?? "USD"
-      const curr = currRes.data?.find((c) => c.code === code)
-      setCurrencySymbol(curr?.symbol ?? "$")
-      setLoading(false)
-    })()
-  }, [userId])
+    loadData()
+  }, [userId, loadData])
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) loadData()
+    }, [userId, loadData])
+  )
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true)
+    loadData()
+  }, [loadData])
 
   const balance = useMemo(
     () => accounts.reduce((sum, a) => sum + Number(a.balance), 0),
@@ -174,7 +192,14 @@ export default function HomeScreen() {
         style={[styles.container]}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 60 }]}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={AppColors.primary}
+          />
+        }>
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Total balance</Text>
           <Text style={styles.balanceAmount}>
@@ -185,36 +210,36 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        <View style={styles.chartSection}>
-          <LineChart
-            data={incomeData}
-            data2={expenseData}
-            width={chartWidth()}
-            height={180}
-            spacing={36}
-            initialSpacing={12}
-            endSpacing={12}
-            maxValue={maxValue}
-            noOfSections={5}
-            stepValue={maxValue / 5}
-            curved
-            curvature={0.2}
-            color={AppColors.primary}
-            color2="#c00"
-            thickness={2}
-            thickness2={2}
-            hideDataPoints={incomeData.length > 10}
-            hideDataPoints2={expenseData.length > 10}
-            isAnimated
-            animateTogether
-            xAxisLabelTextStyle={styles.chartXLabel}
-            yAxisTextStyle={styles.chartYLabel}
-          />
-          <View style={styles.chartLegend}>
-            <View style={[styles.chartLegendDot, { backgroundColor: AppColors.primary }]} />
-            <Text style={styles.chartLegendText}>Income</Text>
-            <View style={[styles.chartLegendDot, { backgroundColor: "#c00" }]} />
-            <Text style={styles.chartLegendText}>Expense</Text>
+        <View style={styles.chartCard}>
+          <View style={styles.chartCardInner}>
+            <LineChart
+              data={incomeData}
+              data2={expenseData}
+              width={chartWidth() - 32}
+              height={140}
+              spacing={28}
+              initialSpacing={8}
+              endSpacing={8}
+              maxValue={maxValue}
+              noOfSections={4}
+              stepValue={maxValue / 4}
+              curved
+              curvature={0.25}
+              color={AppColors.primary}
+              color2={AppColors.gray}
+              thickness={1.5}
+              thickness2={1.5}
+              hideDataPoints
+              hideDataPoints2
+              xAxisLabelTextStyle={styles.chartXLabel}
+              yAxisTextStyle={styles.chartYLabel}
+            />
+            <View style={styles.chartLegend}>
+              <View style={[styles.chartLegendDot, { backgroundColor: AppColors.primary }]} />
+              <Text style={styles.chartLegendText}>Income</Text>
+              <View style={[styles.chartLegendDot, { backgroundColor: AppColors.gray }]} />
+              <Text style={styles.chartLegendText}>Expense</Text>
+            </View>
           </View>
         </View>
 
@@ -246,11 +271,11 @@ export default function HomeScreen() {
               <View key={cat.id} style={styles.categoryCard}>
                 <View
                   style={[
-                    styles.categoryIcon,
-                    { backgroundColor: (cat.color || AppColors.gray) + "40" },
+                    styles.categoryAvatar,
+                    { backgroundColor: (cat.color || AppColors.gray) + "35" },
                   ]}>
-                  <Text style={styles.categoryIconText}>
-                    {cat.icon ?? cat.name.slice(0, 1)}
+                  <Text style={styles.categoryAvatarText}>
+                    {cat.name.slice(0, 1).toUpperCase()}
                   </Text>
                 </View>
                 <View style={styles.categoryInfo}>
@@ -392,8 +417,17 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     marginTop: 4,
   },
-  chartSection: {
+  chartCard: {
     marginBottom: 24,
+    borderRadius: 16,
+    backgroundColor: AppColors.white,
+    borderWidth: 1,
+    borderColor: AppColors.gray + "18",
+    overflow: "hidden",
+  },
+  chartCardInner: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
   },
   chartXLabel: {
     fontSize: 10,
@@ -408,16 +442,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 16,
-    marginTop: 8,
+    marginTop: 12,
   },
   chartLegendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   chartLegendText: {
-    fontSize: 12,
+    fontSize: 11,
     color: AppColors.gray,
+    fontWeight: "600",
   },
   quickActions: {
     flexDirection: "row",
@@ -471,17 +506,17 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  categoryIcon: {
+  categoryAvatar: {
     width: 40,
     height: 40,
-    borderRadius: 8,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
-  categoryIconText: {
+  categoryAvatarText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: AppColors.black,
   },
   categoryInfo: {
@@ -499,7 +534,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   categoryBalanceNegative: {
-    color: "#c00",
+    color: AppColors.gray,
   },
   forYouRow: {
     flexDirection: "row",

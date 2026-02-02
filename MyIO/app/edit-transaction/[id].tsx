@@ -205,6 +205,22 @@ export default function EditTransactionScreen() {
       style={[styles.container, { paddingTop: insets.top }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={insets.top + 60}>
+      <View style={styles.header}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          hitSlop={12}>
+          <Text style={styles.backBtnText}>‹</Text>
+        </Pressable>
+        <Text style={styles.headerTitle}>
+          {txType === "INCOME"
+            ? "Edit Income"
+            : txType === "EXPENSES"
+              ? "Edit Expense"
+              : "Edit Transfer"}
+        </Text>
+        <View style={styles.backBtn} />
+      </View>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -436,6 +452,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppColors.gray + "12",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: AppColors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.gray + "20",
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backBtnText: {
+    fontSize: 28,
+    fontWeight: "600",
+    color: AppColors.black,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: AppColors.black,
   },
   centered: {
     flex: 1,
