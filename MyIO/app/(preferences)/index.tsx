@@ -3,12 +3,12 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,12 +16,15 @@ import { QuickActionsModal } from '@/components/feature/QuickActionsModal';
 import { Header } from '@/components/layout';
 import { AppColors } from '@/constants/theme';
 import {
-    createUserPreference,
-    findUserPreference,
-    listCurrencies,
-    updateUserPreference,
+  createUserPreference,
+  findUserPreference,
+  listAccounts,
+  listCurrencies,
+  updateAccount,
+  updateUserPreference,
 } from '@/lib/db';
-import { useAuthUser } from '@/stores';
+import { runLoginCheck } from '@/lib/login-check';
+import { useAuthUser, useDefaultAccountsStore } from '@/stores';
 import type { Currency } from '@/types/database';
 
 const THEME_OPTIONS = [
@@ -82,6 +85,24 @@ export default function PreferencesScreen() {
           default_expense_account_id: null,
           migration_completed: false,
         });
+    // add default accounts if not exists
+    const resultAccounts = await runLoginCheck(userId);
+    if (resultAccounts.ok) {
+      useDefaultAccountsStore.getState().setDefaults(
+        resultAccounts.preference.default_income_account_id ?? null,
+        resultAccounts.preference.default_expense_account_id ?? null
+      );
+    }
+
+    // Update Accounts default currency
+    let allAccounts = await listAccounts(userId);
+    if (allAccounts.data) {
+      for (const account of allAccounts.data) {
+        await updateAccount(userId, account.id, {
+          currency_code: defaultCurrency,
+        });
+      }
+    }
     setSaving(false);
     if (result.error) {
       setError(result.error.message);

@@ -4,6 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import type { ComponentProps } from 'react';
 import {
+  Dimensions,
   Pressable,
   StyleSheet,
   Text,
@@ -25,7 +26,9 @@ export type QuickActionId =
   | 'setting'
   | 'all_card'
   | 'myio_card'
-  | 'new_card';
+  | 'new_card'
+  | 'categories'
+  | 'accounts';
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -33,29 +36,21 @@ type QuickActionItem = {
   id: QuickActionId;
   label: string;
   icon: MaterialIconName;
-  highlighted?: boolean;
+  color: string;
 };
 
-const ROW1: QuickActionItem[] = [
-  { id: 'transfer', label: 'TRANSFER', icon: 'swap-horiz' },
-  { id: 'expense', label: 'EXPENSE', icon: 'trending-up' },
-  { id: 'income', label: 'INCOME', icon: 'trending-down' },
+const ACTIONS: QuickActionItem[] = [
+  { id: 'income', label: 'Income', icon: 'arrow-downward', color: '#16a34a' },
+  { id: 'expense', label: 'Expense', icon: 'arrow-upward', color: '#ef4444' },
+  { id: 'transfer', label: 'Transfer', icon: 'swap-horiz', color: '#2563eb' },
+  { id: 'categories', label: 'Categories', icon: 'category', color: '#f59e0b' },
+  { id: 'accounts', label: 'Accounts', icon: 'account-balance-wallet', color: '#8b5cf6' },
+  { id: 'goal', label: 'Goals', icon: 'flag', color: '#ec4899' },
+  { id: 'debts', label: 'Debts', icon: 'money-off', color: '#64748b' },
+  { id: 'add_import', label: 'Import', icon: 'file-upload', color: '#0ea5e9' },
+  { id: 'myio_card', label: 'My Cards', icon: 'credit-card', color: '#14b8a6' },
+  { id: 'setting', label: 'Settings', icon: 'settings', color: '#475569' },
 ];
-
-const ROW2: QuickActionItem[] = [
-  { id: 'goal', label: 'GOAL', icon: 'emoji-events' },
-  { id: 'add_import', label: 'ADD IMPORT', icon: 'download' },
-  { id: 'debts', label: 'DEBTS', icon: 'sync' },
-  { id: 'setting', label: 'SETTING', icon: 'settings' },
-];
-
-const ROW3: QuickActionItem[] = [
-  { id: 'all_card', label: 'ALL CARD', icon: 'swap-horiz' },
-  { id: 'myio_card', label: 'MYIO CARD', icon: 'apps', highlighted: true },
-  { id: 'new_card', label: 'NEW CARD', icon: 'credit-card' },
-];
-
-const ROWS = [ROW1, ROW2, ROW3];
 
 export type QuickActionsModalProps = {
   visible: boolean;
@@ -69,19 +64,21 @@ export function QuickActionsModal({
   onAction,
 }: QuickActionsModalProps) {
   const insets = useSafeAreaInsets();
+  const screenWidth = Dimensions.get('window').width;
+  
+  // 3 columns for fuller look with more space
+  const itemWidth = (screenWidth - 48) / 3; 
 
   const handleAction = (id: QuickActionId) => {
-    if (id === 'close') {
-      onClose();
-      return;
-    }
     onAction?.(id);
-    if (id === 'setting') {
-      router.push('/(preferences)');
+    // Navigation routing
+    setTimeout(() => {
+      if (id === 'setting') router.push('/(preferences)');
+      else if (id === 'categories') router.push('/categories');
+      else if (id === 'accounts') router.push('/accounts' as any);
+      
       onClose();
-    } else {
-      onClose();
-    }
+    }, 50);
   };
 
   return (
@@ -89,78 +86,48 @@ export function QuickActionsModal({
       isVisible={visible}
       onBackdropPress={onClose}
       onBackButtonPress={onClose}
-      animationIn="fadeIn"
-      animationOut="fadeOut"
-      animationInTiming={250}
-      animationOutTiming={250}
+      animationIn="slideInUp"
+      animationOut="slideOutDown"
+      // Slower, smoother animation for large sheet
+      animationInTiming={500}
+      animationOutTiming={400}
       backdropOpacity={0.5}
       backdropColor="#000"
-      hasBackdrop
-      coverScreen
       style={styles.modal}
       useNativeDriver
-      useNativeDriverForBackdrop
+      hideModalContentWhileAnimating
     >
-      <View
-        style={[
-          styles.container,
-          {
-            paddingTop: insets.top,
-            paddingBottom: insets.bottom,
-            paddingHorizontal: 24,
-          },
-        ]}
-      >
-        <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Quick actions</Text>
-          <Pressable
-            onPress={onClose}
-            style={({ pressed }) => [styles.closeButton, pressed && styles.buttonPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
+      <View style={[styles.sheet, { paddingTop: Math.max(insets.top, 20) }]}>
+        {/* Header with Close */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Quick Actions</Text>
+          <Pressable 
+            onPress={onClose} 
+            style={styles.closeBtn}
+            hitSlop={20}
           >
-            <MaterialIcons name="close" size={28} color={AppColors.black} />
+           <MaterialIcons name="close" size={28} color={AppColors.black} />
           </Pressable>
         </View>
 
-        <View style={styles.content}>
-          {ROWS.map((row, rowIndex) => (
-            <View key={rowIndex} style={styles.row}>
-              {row.map((item) => (
-                <Pressable
-                  key={item.id}
-                  onPress={() => handleAction(item.id)}
-                  style={({ pressed }) => [
-                    styles.buttonWrap,
-                    pressed && styles.buttonPressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={item.label}
-                >
-                  <View
-                    style={[
-                      styles.circle,
-                      item.highlighted && styles.circleHighlighted,
-                    ]}
-                  >
-                    <MaterialIcons
-                      name={item.icon}
-                      size={24}
-                      color={item.highlighted ? AppColors.black : AppColors.gray}
-                    />
-                  </View>
-                  <Text
-                    style={[
-                      styles.label,
-                      item.highlighted && styles.labelHighlighted,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+        <View style={styles.grid}>
+          {ACTIONS.map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() => handleAction(item.id)}
+              style={({ pressed }) => [
+                styles.itemContainer,
+                { width: itemWidth },
+                pressed && styles.itemPressed,
+              ]}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: item.color + '15' }]}>
+                <MaterialIcons name={item.icon} size={32} color={item.color} />
+              </View>
+              <Text style={styles.itemLabel} numberOfLines={1}>
+                {item.label}
+              </Text>
+            </Pressable>
           ))}
         </View>
       </View>
@@ -171,69 +138,61 @@ export function QuickActionsModal({
 const styles = StyleSheet.create({
   modal: {
     margin: 0,
-    flex: 1,
+    justifyContent: 'flex-end',
   },
-  container: {
-    flex: 1,
-    width: '100%',
+  sheet: {
+    flex: 1, // Full height
     backgroundColor: AppColors.white,
+    paddingHorizontal: 24,
+    // Rounded top corners only slightly since it's full screen-ish
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: 60, // Start slightly down from top
   },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: AppColors.gray + '20',
+    marginBottom: 40,
+    marginTop: 10,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 24, // Larger title
+    fontWeight: '800',
     color: AppColors.black,
+    letterSpacing: -0.5,
   },
-  closeButton: {
+  closeBtn: {
     padding: 8,
+    backgroundColor: AppColors.gray + '10',
+    borderRadius: 20,
   },
-  content: {
-    flex: 1,
-    width: '100%',
-    paddingTop: 24,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-  },
-  row: {
+  grid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    gap: 8,
+    flexWrap: 'wrap',
+    // alignContent: 'center',
+    gap: 0, 
   },
-  buttonWrap: {
-    flex: 1,
+  itemContainer: {
     alignItems: 'center',
-    minWidth: 72,
+    marginBottom: 40, // More vertical spacing
   },
-  buttonPressed: {
-    opacity: 0.8,
+  itemPressed: {
+    opacity: 0.6,
+    transform: [{ scale: 0.95 }],
   },
-  circle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: AppColors.gray + '22',
+  iconCircle: {
+    width: 72, // Larger icons
+    height: 72,
+    borderRadius: 28, 
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  circleHighlighted: {
-    backgroundColor: AppColors.primary,
-  },
-  label: {
-    fontSize: 10,
+  itemLabel: {
+    fontSize: 13,
     fontWeight: '600',
-    color: AppColors.gray,
-  },
-  labelHighlighted: {
     color: AppColors.black,
+    textAlign: 'center',
   },
 });

@@ -8,12 +8,18 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { logger } from '@/lib/logger';
 import { runLoginCheck } from '@/lib/login-check';
 import { supabase } from '@/lib/supabase';
+import { useAccountsStore } from './useAccountsStore';
+import { useCategoriesStore } from './useCategoriesStore';
 import { useDefaultAccountsStore } from './useDefaultAccountsStore';
+import { usePreferencesStore } from './usePreferencesStore';
+import { useProfileStore } from './useProfileStore';
+import { useTransactionsStore } from './useTransactionsStore';
 
 export type LoginCredentials = { email: string; password: string };
 
 type AuthState = {
   session: Session | null;
+  getSession: () => Session | null;
   setSession: (session: Session | null) => void;
   login: (credentials: LoginCredentials) => Promise<{ error: Error | null }>;
   signUp: (credentials: LoginCredentials) => Promise<{ error: Error | null }>;
@@ -36,8 +42,9 @@ function logAuthError(operation: string, error: { message?: string; name?: strin
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
+      getSession: () => get().session,
       setSession: (session) => set({ session }),
 
       login: async (credentials) => {
@@ -79,12 +86,22 @@ export const useAuthStore = create<AuthState>()(
         set(initialState);
         void AsyncStorage.removeItem(STORAGE_KEY);
         useDefaultAccountsStore.getState().reset();
+        useTransactionsStore.getState().reset();
+        useCategoriesStore.getState().reset();
+        useAccountsStore.getState().reset();
+        usePreferencesStore.getState().reset();
+        useProfileStore.getState().reset();
       },
 
       reset: () => {
         set(initialState);
         void AsyncStorage.removeItem(STORAGE_KEY);
         useDefaultAccountsStore.getState().reset();
+        useTransactionsStore.getState().reset();
+        useCategoriesStore.getState().reset();
+        useAccountsStore.getState().reset();
+        usePreferencesStore.getState().reset();
+        useProfileStore.getState().reset();
       },
     }),
     {

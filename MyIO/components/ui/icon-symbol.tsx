@@ -20,6 +20,9 @@ const MAPPING = {
   'chevron.right': 'chevron-right',
   'list.bullet': 'list',
   'lightbulb.fill': 'lightbulb',
+  'chevron.left': 'chevron-left',
+  'plus': 'add',
+  'tag': 'label',
 } as IconMapping;
 
 /**

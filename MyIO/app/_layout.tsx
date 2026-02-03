@@ -12,7 +12,6 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { findUserPreference } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { runLoginCheck } from '@/lib/login-check';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore, useDefaultAccountsStore } from '@/stores';
 
@@ -44,19 +43,19 @@ function useInitialRoute() {
         if (!pref) {
           (router.replace as (href: string) => void)('/(preferences)');
         } else {
-          const result = await runLoginCheck(session.user.id);
+          // const result = await runLoginCheck(session.user.id);
           if (mounted) {
-            if (result.ok) {
-              useDefaultAccountsStore.getState().setDefaults(
-                result.preference.default_income_account_id ?? null,
-                result.preference.default_expense_account_id ?? null
-              );
-            } else if (pref.default_income_account_id != null || pref.default_expense_account_id != null) {
-              useDefaultAccountsStore.getState().setDefaults(
-                pref.default_income_account_id ?? null,
-                pref.default_expense_account_id ?? null
-              );
-            }
+            // if (result.ok) {
+            //   useDefaultAccountsStore.getState().setDefaults(
+            //     result.preference.default_income_account_id ?? null,
+            //     result.preference.default_expense_account_id ?? null
+            //   );
+            // } else if (pref.default_income_account_id != null || pref.default_expense_account_id != null) {
+            //   useDefaultAccountsStore.getState().setDefaults(
+            //     pref.default_income_account_id ?? null,
+            //     pref.default_expense_account_id ?? null
+            //   );
+            // }
             (router.replace as (href: string) => void)('/(tabs)');
           }
         }

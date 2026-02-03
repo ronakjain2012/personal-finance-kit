@@ -1,67 +1,55 @@
 // app/(tabs)/history.tsx — Transaction history with edit button.
 
-import { useFocusEffect } from "@react-navigation/native"
 import { router } from "expo-router"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import {
-    ActivityIndicator,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { QuickActionsModal } from "@/components/feature/QuickActionsModal"
 import { Header } from "@/components/layout"
 import { AppColors } from "@/constants/theme"
-import {
-    findUserPreference,
-    listCurrencies,
-    listTransactions,
-} from "@/lib/db"
 import { formatAmount, formatDate } from "@/lib/helpers"
-import { useAuthUser } from "@/stores"
-import type { Transaction } from "@/types/database"
+import {
+  useAuthUser,
+  usePreferencesStore,
+  useTransactionsStore,
+} from "@/stores"
+import { useMemo } from "react"
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets()
   const user = useAuthUser()
   const userId = user?.id ?? ""
 
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [currencySymbol, setCurrencySymbol] = useState("$")
-  const [loading, setLoading] = useState(true)
+  const transactions = useTransactionsStore((s) => s.transactions)
+  const txLoading = useTransactionsStore((s) => s.loading)
+  const preference = usePreferencesStore((s) => s.preference)
+  const currencies = usePreferencesStore((s) => s.currencies)
+  const fetchTransactions = useTransactionsStore((s) => s.fetch)
   const [refreshing, setRefreshing] = useState(false)
   const [quickActionsVisible, setQuickActionsVisible] = useState(false)
 
+  const loading = txLoading
+  const currencySymbol = useMemo(() => {
+    const code = preference?.default_currency ?? "USD"
+    return currencies.find((c) => c.code === code)?.symbol ?? "$"
+  }, [preference?.default_currency, currencies])
+
   const loadData = useCallback(async () => {
     if (!userId) return
-    const [txRes, prefRes, currRes] = await Promise.all([
-      listTransactions(userId, { limit: 100 }),
-      findUserPreference(userId),
-      listCurrencies(),
+    await Promise.all([
+      fetchTransactions(userId, { limit: 100 }),
     ])
-    if (txRes.data) setTransactions(txRes.data)
-    const code = prefRes.data?.default_currency ?? "USD"
-    const curr = currRes.data?.find((c) => c.code === code)
-    setCurrencySymbol(curr?.symbol ?? "$")
-    setLoading(false)
     setRefreshing(false)
-  }, [userId])
-
-  useEffect(() => {
-    if (!userId) return
-    loadData()
-  }, [userId, loadData])
-
-  useFocusEffect(
-    useCallback(() => {
-      if (userId) loadData()
-    }, [userId, loadData])
-  )
+  }, [userId, fetchTransactions])
 
   const onRefresh = useCallback(() => {
     setRefreshing(true)

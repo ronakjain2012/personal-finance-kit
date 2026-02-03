@@ -41,12 +41,13 @@ export type Account = {
   opening_balance: number;
   balance: number;
   is_active: boolean;
+  allow_delete: boolean;
   created_at: string;
   updated_at: string;
 };
 
 export type EntryType = 'INCOME' | 'EXPENSES' | 'ADJUST' | 'CONTRA';
-export type AddedBy = 'MANUAL' | 'AI' | '3RDPARTY' | 'API' | 'IMPORT' | 'OTHER';
+export type AddedBy = 'MANUAL' | 'AI' | '3RDPARTY' | 'API' | 'IMPORT' | 'TRANSFER' | 'OTHER' | 'AUTO';
 export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
 export type Transaction = {
   id: string;

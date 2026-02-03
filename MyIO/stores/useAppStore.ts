@@ -9,6 +9,8 @@ type Theme = 'light' | 'dark' | 'system';
 type AppState = {
   theme: Theme;
   onboardingDone: boolean;
+  getTheme: () => Theme;
+  getOnboardingDone: () => boolean;
   setTheme: (theme: Theme) => void;
   setOnboardingDone: (done: boolean) => void;
   reset: () => void;
@@ -20,8 +22,10 @@ const STORAGE_KEY = 'myio-app-store';
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
+      getTheme: () => get().theme,
+      getOnboardingDone: () => get().onboardingDone,
       setTheme: (theme) => set({ theme }),
       setOnboardingDone: (onboardingDone) => set({ onboardingDone }),
       reset: () => {

@@ -4,32 +4,41 @@ import * as DocumentPicker from "expo-document-picker"
 import { router, useLocalSearchParams } from "expo-router"
 import { useCallback, useEffect, useState } from "react"
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
+import { AttachmentChip } from "@/components/feature/AttachmentChip"
 import { CalculatorModal } from "@/components/feature/CalculatorModal"
 import { DatePickerField } from "@/components/feature/DatePickerField"
 import { AppColors } from "@/constants/theme"
 import {
-    findTransaction,
-    listAccounts,
-    listCategories,
-    updateTransaction,
-} from "@/lib/db"
+  ATTACHMENT_PICKER_TYPES,
+  getAttachmentDisplayFromUrl,
+  isAllowedMime,
+  toAttachmentItem,
+  type AttachmentItem,
+} from "@/lib/attachment-utils"
+import { findTransaction, updateTransaction } from "@/lib/db"
 import { toISODateString } from "@/lib/helpers"
 import { uploadAttachment } from "@/lib/storage"
-import { useAuthUser, useDefaultAccountsStore } from "@/stores"
-import type { Account, Category, EntryType } from "@/types/database"
+import {
+  useAccountsStore,
+  useAuthUser,
+  useCategoriesStore,
+  useDefaultAccountsStore,
+  useTransactionsStore,
+} from "@/stores"
+import type { EntryType } from "@/types/database"
 
 type TxType = "INCOME" | "EXPENSES" | "CONTRA"
 
@@ -56,26 +65,28 @@ export default function EditTransactionScreen() {
   const [description, setDescription] = useState("")
   const [amount, setAmount] = useState("")
   const [categoryId, setCategoryId] = useState<string | null>(null)
-  const [attachments, setAttachments] = useState<string[]>([])
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([])
   const [calculatorVisible, setCalculatorVisible] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [notFound, setNotFound] = useState(false)
 
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
+  const accounts = useAccountsStore((s) => s.accounts)
+  const categories = useCategoriesStore((s) => s.categories)
+  const fetchAccounts = useAccountsStore((s) => s.fetch)
+  const fetchCategories = useCategoriesStore((s) => s.fetch)
+  const fetchTransactions = useTransactionsStore((s) => s.fetch)
+  const activeAccounts = accounts.filter((a) => a.is_active)
 
   useEffect(() => {
     if (!userId || !id) return
     ;(async () => {
-      const [txRes, accRes, catRes] = await Promise.all([
+      const [txRes] = await Promise.all([
         findTransaction(userId, id),
-        listAccounts(userId),
-        listCategories(userId),
+        fetchAccounts(userId),
+        fetchCategories(userId),
       ])
-      if (accRes.data) setAccounts(accRes.data.filter((a) => a.is_active))
-      if (catRes.data) setCategories(catRes.data)
       if (txRes.error || !txRes.data) {
         setNotFound(true)
         setLoading(false)
@@ -92,10 +103,12 @@ export default function EditTransactionScreen() {
       setDescription(tx.description ?? "")
       setAmount(String(tx.amount))
       setCategoryId(tx.category_id)
-      setAttachments(tx.attachments ?? [])
+      setAttachments(
+        (tx.attachments ?? []).map(getAttachmentDisplayFromUrl)
+      )
       setLoading(false)
     })()
-  }, [userId, id, defaultExpenseId, defaultIncomeId])
+  }, [userId, id, defaultExpenseId, defaultIncomeId, fetchAccounts, fetchCategories])
 
   const displayCategories =
     txType === "INCOME"
@@ -113,21 +126,32 @@ export default function EditTransactionScreen() {
     if (!userId) return
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
+        type: [...ATTACHMENT_PICKER_TYPES],
         copyToCacheDirectory: true,
       })
       if (result.canceled) return
       const file = result.assets[0]
+      const mime = file.mimeType ?? ""
+      if (!isAllowedMime(mime)) {
+        Alert.alert(
+          "File type not allowed",
+          "Only images and PDF files can be uploaded."
+        )
+        return
+      }
       setUploading(true)
       const out = await uploadAttachment(
         userId,
         file.uri,
-        file.mimeType ?? "application/octet-stream",
+        mime || "application/octet-stream",
         file.name
       )
       setUploading(false)
       if ("url" in out) {
-        setAttachments((prev) => [...prev, out.url])
+        setAttachments((prev) => [
+          ...prev,
+          toAttachmentItem(out.url, file.name, mime),
+        ])
       } else {
         Alert.alert("Upload failed", out.error.message)
       }
@@ -138,7 +162,7 @@ export default function EditTransactionScreen() {
   }, [userId])
 
   const removeAttachment = useCallback((url: string) => {
-    setAttachments((prev) => prev.filter((u) => u !== url))
+    setAttachments((prev) => prev.filter((a) => a.url !== url))
   }, [])
 
   const canSubmit =
@@ -171,13 +195,14 @@ export default function EditTransactionScreen() {
       description: description.trim() || null,
       transaction_date: transactionDate,
       entry_type: txType as EntryType,
-      attachments: attachments.length ? attachments : [],
+      attachments: attachments.length ? attachments.map((a) => a.url) : [],
     })
     setSaving(false)
     if (error) {
       Alert.alert("Error", error.message)
       return
     }
+    useTransactionsStore.getState().fetch(userId, { limit: 200 })
     router.back()
   }
 
@@ -250,7 +275,7 @@ export default function EditTransactionScreen() {
           <>
             <Text style={styles.sectionLabel}>From account</Text>
             <View style={styles.chipRow}>
-              {accounts.map((a) => (
+              {activeAccounts.map((a) => (
                 <Pressable
                   key={a.id}
                   style={[
@@ -270,7 +295,7 @@ export default function EditTransactionScreen() {
             </View>
             <Text style={styles.sectionLabel}>To account</Text>
             <View style={styles.chipRow}>
-              {accounts.map((a) => (
+              {activeAccounts.map((a) => (
                 <Pressable
                   key={a.id}
                   style={[
@@ -293,7 +318,7 @@ export default function EditTransactionScreen() {
           <>
             <Text style={styles.sectionLabel}>Credit to account</Text>
             <View style={styles.chipRow}>
-              {accounts.map((a) => (
+              {activeAccounts.map((a) => (
                 <Pressable
                   key={a.id}
                   style={[
@@ -316,7 +341,7 @@ export default function EditTransactionScreen() {
           <>
             <Text style={styles.sectionLabel}>Debit from account</Text>
             <View style={styles.chipRow}>
-              {accounts.map((a) => (
+              {activeAccounts.map((a) => (
                 <Pressable
                   key={a.id}
                   style={[
@@ -358,7 +383,7 @@ export default function EditTransactionScreen() {
           <Text style={styles.currencySymbol}>$</Text>
         </View>
 
-        {displayCategories.length > 0 && (
+        {(txType === "INCOME" || txType === "EXPENSES") && (
           <>
             <Text style={styles.sectionLabel}>
               {txType === "INCOME"
@@ -366,6 +391,24 @@ export default function EditTransactionScreen() {
                 : "Expense category"}
             </Text>
             <View style={styles.chipRow}>
+              <Pressable
+                style={styles.addCategoryCircle}
+                onPress={() =>
+                  router.push({
+                    pathname: "/add-category",
+                    params: {
+                      type:
+                        txType === "INCOME"
+                          ? "INCOME"
+                          : txType === "EXPENSES"
+                            ? "EXPENSE"
+                            : "TRANSFER",
+                    },
+                  })
+                }
+              >
+                <Text style={styles.addCategoryPlus}>+</Text>
+              </Pressable>
               {displayCategories.map((c) => (
                 <Pressable
                   key={c.id}
@@ -401,18 +444,14 @@ export default function EditTransactionScreen() {
               <Text style={styles.addCategoryPlus}>+</Text>
             )}
           </Pressable>
-          {attachments.map((url) => (
-            <View key={url} style={styles.attachmentChip}>
-              <Text style={styles.attachmentLabel} numberOfLines={1}>
-                File
-              </Text>
-              <Pressable
-                hitSlop={8}
-                onPress={() => removeAttachment(url)}
-                style={styles.removeAttachment}>
-                <Text style={styles.removeAttachmentText}>×</Text>
-              </Pressable>
-            </View>
+          {attachments.map((a) => (
+            <AttachmentChip
+              key={a.url}
+              url={a.url}
+              name={a.name}
+              isImage={a.isImage}
+              onRemove={() => removeAttachment(a.url)}
+            />
           ))}
         </View>
 
@@ -617,29 +656,6 @@ const styles = StyleSheet.create({
   calcBtn: { padding: 8, marginRight: 8 },
   calcBtnText: { fontSize: 22, fontWeight: "700", color: AppColors.primary },
   currencySymbol: { fontSize: 18, fontWeight: "600", color: AppColors.gray },
-  attachmentChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    paddingLeft: 14,
-    paddingRight: 8,
-    borderRadius: 999,
-    backgroundColor: AppColors.white,
-    borderWidth: 1,
-    borderColor: AppColors.gray + "25",
-    gap: 8,
-  },
-  attachmentLabel: {
-    fontSize: 13,
-    color: AppColors.gray,
-    maxWidth: 80,
-  },
-  removeAttachment: { padding: 4 },
-  removeAttachmentText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: AppColors.gray,
-  },
   submitBtn: {
     backgroundColor: AppColors.primary,
     borderRadius: 12,

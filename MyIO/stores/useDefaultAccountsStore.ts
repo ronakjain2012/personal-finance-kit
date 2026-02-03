@@ -8,6 +8,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 type DefaultAccountsState = {
   defaultIncomeAccountId: string | null;
   defaultExpenseAccountId: string | null;
+  getDefaultIncomeAccountId: () => string | null;
+  getDefaultExpenseAccountId: () => string | null;
   setDefaultIncomeAccountId: (id: string | null) => void;
   setDefaultExpenseAccountId: (id: string | null) => void;
   setDefaults: (incomeId: string | null, expenseId: string | null) => void;
@@ -23,8 +25,10 @@ const STORAGE_KEY = 'myio-default-accounts-store';
 
 export const useDefaultAccountsStore = create<DefaultAccountsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
+      getDefaultIncomeAccountId: () => get().defaultIncomeAccountId,
+      getDefaultExpenseAccountId: () => get().defaultExpenseAccountId,
       setDefaultIncomeAccountId: (defaultIncomeAccountId) => set({ defaultIncomeAccountId }),
       setDefaultExpenseAccountId: (defaultExpenseAccountId) => set({ defaultExpenseAccountId }),
       setDefaults: (defaultIncomeAccountId, defaultExpenseAccountId) =>

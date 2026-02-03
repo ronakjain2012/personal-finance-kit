@@ -1,12 +1,20 @@
 // app/(tabs)/_layout.tsx — Tab layout: Home, History, Articles; lime-green + action button in footer.
 
 import { Tabs } from "expo-router"
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native"
+import {
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { HapticTab } from "@/components/haptic-tab"
 import { IconSymbol } from "@/components/ui/icon-symbol"
 import { AppColors } from "@/constants/theme"
+import { useAccountsStore, useAuthUser, useCategoriesStore } from "@/stores"
+import { useEffect } from "react"
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context"
 
 const ACTIVE_LINE_WIDTH = 24
@@ -24,12 +32,7 @@ function TabIconWithLine({
   return (
     <View style={styles.tabIconWrap}>
       {focused && (
-        <View
-          style={[
-            styles.activeLine,
-            { backgroundColor: color },
-          ]}
-        />
+        <View style={[styles.activeLine, { backgroundColor: color }]} />
       )}
       <IconSymbol size={26} name={name} color={color} />
     </View>
@@ -46,72 +49,96 @@ function AddButtonIcon() {
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets()
+  const user = useAuthUser();
+    const userId = user?.id ?? '';
+const fetchAccounts = useAccountsStore((s) => s.fetch);
+  const fetchCategories = useCategoriesStore((s) => s.fetch);
+
+
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      await Promise.all([fetchAccounts(userId), fetchCategories(userId)]);
+    })();
+  }, [userId, fetchAccounts, fetchCategories]);
 
   return (
     <SafeAreaProvider>
       <SafeAreaView style={[styles.safe]} edges={["top"]}>
-      <KeyboardAvoidingView
-      style={[styles.container]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={insets.top + 60}>
-        <View style={styles.container}>
-          <Tabs
-            screenOptions={{
-              headerShown: false,
-              tabBarActiveTintColor: AppColors.black,
-              tabBarInactiveTintColor: AppColors.gray,
-              tabBarStyle: [
-                styles.tabBar,
-                {
-                  position: "absolute",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  paddingBottom: Math.max(insets.bottom, 8),
-                  height: 56 + Math.max(insets.bottom, 8),
-                },
-              ],
-              tabBarLabelStyle: styles.tabBarLabel,
-              tabBarItemStyle: styles.tabBarItem,
-              tabBarButton: HapticTab,
-            }}>
-            <Tabs.Screen
-              name="index"
-              options={{
-                title: "Home",
-                tabBarIcon: ({ focused, color }) => (
-                  <TabIconWithLine focused={focused} color={color} name="house.fill" />
-                ),
-              }}
-            />
-            <Tabs.Screen
-              name="history"
-              options={{
-                title: "History",
-                tabBarIcon: ({ focused, color }) => (
-                  <TabIconWithLine focused={focused} color={color} name="list.bullet" />
-                ),
-              }}
-            />
-            <Tabs.Screen
-              name="articles"
-              options={{
-                title: "Articles",
-                tabBarIcon: ({ focused, color }) => (
-                  <TabIconWithLine focused={focused} color={color} name="lightbulb.fill" />
-                ),
-              }}
-            />
-            <Tabs.Screen
-              name="add"
-              options={{
-                title: "",
-                tabBarIcon: () => <AddButtonIcon />,
-                tabBarLabel: () => null,
-              }}
-            />
-          </Tabs>
-        </View>
+        <KeyboardAvoidingView
+          style={[styles.container]}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={insets.top + 60}>
+          <View style={styles.container}>
+            <Tabs
+              screenOptions={{
+                headerShown: false,
+                tabBarActiveTintColor: AppColors.black,
+                tabBarInactiveTintColor: AppColors.gray,
+                tabBarStyle: [
+                  styles.tabBar,
+                  {
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    paddingBottom: Math.max(insets.bottom, 8),
+                    height: 56 + Math.max(insets.bottom, 8),
+                  },
+                ],
+                tabBarLabelStyle: styles.tabBarLabel,
+                tabBarItemStyle: styles.tabBarItem,
+                tabBarButton: HapticTab,
+              }}>
+              <Tabs.Screen
+                name="index"
+                options={{
+                  title: "Home",
+                  tabBarIcon: ({ focused, color }) => (
+                    <TabIconWithLine
+                      focused={focused}
+                      color={color}
+                      name="house.fill"
+                    />
+                  ),
+                }}
+              />
+              <Tabs.Screen
+                name="history"
+                options={{
+                  title: "History",
+                  tabBarIcon: ({ focused, color }) => (
+                    <TabIconWithLine
+                      focused={focused}
+                      color={color}
+                      name="list.bullet"
+                    />
+                  ),
+                }}
+              />
+              <Tabs.Screen
+                name="articles"
+                options={{
+                  title: "Articles",
+                  tabBarIcon: ({ focused, color }) => (
+                    <TabIconWithLine
+                      focused={focused}
+                      color={color}
+                      name="lightbulb.fill"
+                    />
+                  ),
+                }}
+              />
+              <Tabs.Screen
+                name="add"
+                options={{
+                  title: "",
+                  tabBarIcon: () => <AddButtonIcon />,
+                  tabBarLabel: () => null,
+                }}
+              />
+            </Tabs>
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </SafeAreaProvider>

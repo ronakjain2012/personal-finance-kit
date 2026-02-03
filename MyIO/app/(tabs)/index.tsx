@@ -17,92 +17,109 @@ import {
 import { LineChart } from "react-native-gifted-charts"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
+import { CategorySpendingCards } from "@/components/feature/CategorySpendingCards"
+import { IncomeCategoryCards } from "@/components/feature/IncomeCategoryCards"
 import { QuickActionsModal } from "@/components/feature/QuickActionsModal"
 import { Header } from "@/components/layout"
 import { AppColors } from "@/constants/theme"
-import {
-  findUserPreference,
-  listAccounts,
-  listCategories,
-  listCurrencies,
-  listTransactions,
-} from "@/lib/db"
 import { formatAmount, formatDate, toISODateString } from "@/lib/helpers"
-import { useAuthUser } from "@/stores"
-import type { Account, Category, Transaction } from "@/types/database"
+import {
+  useAccountsStore,
+  useAuthUser,
+  useCategoriesStore,
+  usePreferencesStore,
+  useReportingStore,
+  useTransactionsStore,
+} from "@/stores"
+import type { Transaction } from "@/types/database"
 
-const CHART_DAYS = 7
+const CHART_DAYS = 7 // Fixed to week length
 const HISTORY_LIMIT = 10
-
-type CategoryBalance = Category & { balance: number }
 
 function buildChartData(transactions: Transaction[]) {
   const today = dayjs()
+  const startOfWeek = today.startOf("week")
+  
   const incomeByDate: Record<string, number> = {}
   const expenseByDate: Record<string, number> = {}
-  for (let i = CHART_DAYS - 1; i >= 0; i--) {
-    const d = today.subtract(i, "day")
+  const labels: string[] = []
+
+  // Generate 7 days for the current week
+  for (let i = 0; i < 7; i++) {
+    const d = startOfWeek.add(i, "day")
     const key = toISODateString(d) ?? ""
     incomeByDate[key] = 0
     expenseByDate[key] = 0
+    labels.push(key)
   }
+
   for (const t of transactions) {
     const key = t.transaction_date.slice(0, 10)
-    if (!(key in incomeByDate)) continue
-    const amt = Number(t.amount)
-    if (t.entry_type === "INCOME") incomeByDate[key] += amt
-    else if (t.entry_type === "EXPENSES") expenseByDate[key] += amt
+    if (key in incomeByDate) { // Only count if in current week
+        const amt = Number(t.amount)
+        if (t.entry_type === "INCOME") incomeByDate[key] += amt
+        else if (t.entry_type === "EXPENSES") expenseByDate[key] += amt
+    }
   }
-  const labels = Object.keys(incomeByDate).sort()
+
   const incomeData = labels.map((k) => ({
     value: incomeByDate[k] ?? 0,
-    label: formatDate(k).slice(0, 5),
+    label: dayjs(k).format("ddd"), // Mon, Tue...
+    dataPointText: "",
   }))
   const expenseData = labels.map((k) => ({
     value: expenseByDate[k] ?? 0,
-    label: formatDate(k).slice(0, 5),
+    label: dayjs(k).format("ddd"),
+    dataPointText: "",
   }))
+
   const allValues = [
     ...incomeData.map((d) => d.value),
     ...expenseData.map((d) => d.value),
   ]
   const maxVal = Math.max(1, ...allValues)
-  const step = Math.ceil(maxVal / 5) || 1
-  const maxValue = step * 5
+  // Round up max value for nice top padding
+  const maxValue = Math.ceil(maxVal * 1.2)
+
   return { incomeData, expenseData, maxValue }
 }
+
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets()
   const user = useAuthUser()
   const userId = user?.id ?? ""
 
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [currencySymbol, setCurrencySymbol] = useState("$")
-  const [loading, setLoading] = useState(true)
+  const accounts = useAccountsStore((s) => s.accounts)
+  const transactions = useTransactionsStore((s) => s.transactions)
+  const preference = usePreferencesStore((s) => s.preference)
+  const currencies = usePreferencesStore((s) => s.currencies)
+  const txLoading = useTransactionsStore((s) => s.loading)
+  const accLoading = useAccountsStore((s) => s.loading)
+  const catLoading = useCategoriesStore((s) => s.loading)
+  const prefLoading = usePreferencesStore((s) => s.loading)
+  const fetchTransactions = useTransactionsStore((s) => s.fetch)
+  const fetchAccounts = useAccountsStore((s) => s.fetch)
+  const fetchCategories = useCategoriesStore((s) => s.fetch)
+  const fetchPreferences = usePreferencesStore((s) => s.fetch)
+  const fetchReporting = useReportingStore((s) => s.fetch)
+
   const [refreshing, setRefreshing] = useState(false)
   const [quickActionsVisible, setQuickActionsVisible] = useState(false)
+  
+  const loading = txLoading || accLoading || catLoading || prefLoading
 
   const loadData = useCallback(async () => {
     if (!userId) return
-    const [accRes, catRes, txRes, prefRes, currRes] = await Promise.all([
-      listAccounts(userId),
-      listCategories(userId),
-      listTransactions(userId, { limit: 200 }),
-      findUserPreference(userId),
-      listCurrencies(),
+    await Promise.all([
+      fetchTransactions(userId, { limit: 200 }),
+      fetchCategories(userId),
+      fetchAccounts(userId),
+      fetchPreferences(userId),
     ])
-    if (accRes.data) setAccounts(accRes.data.filter((a) => a.is_active))
-    if (catRes.data) setCategories(catRes.data)
-    if (txRes.data) setTransactions(txRes.data)
-    const code = prefRes.data?.default_currency ?? "USD"
-    const curr = currRes.data?.find((c) => c.code === code)
-    setCurrencySymbol(curr?.symbol ?? "$")
-    setLoading(false)
+    await fetchReporting(userId)
     setRefreshing(false)
-  }, [userId])
+  }, [userId, fetchTransactions, fetchCategories, fetchAccounts, fetchPreferences, fetchReporting])
 
   useEffect(() => {
     if (!userId) return
@@ -120,9 +137,18 @@ export default function HomeScreen() {
     loadData()
   }, [loadData])
 
-  const balance = useMemo(
-    () => accounts.reduce((sum, a) => sum + Number(a.balance), 0),
+  const activeAccounts = useMemo(
+    () => accounts.filter((a) => a.is_active),
     [accounts]
+  )
+  const currencySymbol = useMemo(() => {
+    const code = preference?.default_currency ?? "USD"
+    return currencies.find((c) => c.code === code)?.symbol ?? "$"
+  }, [preference?.default_currency, currencies])
+
+  const balance = useMemo(
+    () => activeAccounts.reduce((sum, a) => sum + Number(a.balance), 0),
+    [activeAccounts]
   )
   const spending = useMemo(
     () =>
@@ -143,21 +169,6 @@ export default function HomeScreen() {
     () => buildChartData(transactions),
     [transactions]
   )
-
-  const categoryBalances = useMemo((): CategoryBalance[] => {
-    const map = new Map<string, number>()
-    for (const c of categories) map.set(c.id, 0)
-    for (const t of transactions) {
-      if (!t.category_id) continue
-      const amt = Number(t.amount)
-      const sign = t.entry_type === "INCOME" ? 1 : -1
-      map.set(t.category_id, (map.get(t.category_id) ?? 0) + sign * amt)
-    }
-    return categories.map((c) => ({
-      ...c,
-      balance: map.get(c.id) ?? 0,
-    }))
-  }, [categories, transactions])
 
   const last10Transactions = useMemo(
     () => transactions.slice(0, HISTORY_LIMIT),
@@ -206,40 +217,96 @@ export default function HomeScreen() {
             {formatAmount(balance, currencySymbol)}
           </Text>
           <Text style={styles.balanceSub}>
-            {accounts.length} account{accounts.length !== 1 ? "s" : ""}
+            {activeAccounts.length} account{activeAccounts.length !== 1 ? "s" : ""}
           </Text>
         </View>
 
         <View style={styles.chartCard}>
+          <View style={styles.chartHeader}>
+             <Text style={styles.chartTitle}>Weekly Overview</Text>
+             <Text style={styles.chartSubtitle}>{dayjs().startOf('week').format("MMM D")} - {dayjs().endOf('week').format("MMM D")}</Text>
+          </View>
           <View style={styles.chartCardInner}>
             <LineChart
               data={incomeData}
               data2={expenseData}
-              width={chartWidth() - 32}
-              height={140}
-              spacing={28}
-              initialSpacing={8}
-              endSpacing={8}
-              maxValue={maxValue}
-              noOfSections={4}
-              stepValue={maxValue / 4}
-              curved
-              curvature={0.25}
+              height={180}
+              width={chartWidth() + 10}
+              spacing={(chartWidth() - 30) / 7}
+              initialSpacing={10}
               color={AppColors.primary}
-              color2={AppColors.gray}
-              thickness={1.5}
-              thickness2={1.5}
+              color2="#ef4444"
+              thickness={3}
+              thickness2={3}
+              curved
+              curvature={0.2}
+              hideRules
+              hideYAxisText
+              hideAxesAndRules
+              isAnimated
+              animationDuration={1200}
               hideDataPoints
               hideDataPoints2
-              xAxisLabelTextStyle={styles.chartXLabel}
-              yAxisTextStyle={styles.chartYLabel}
+              startFillColor={AppColors.primary}
+              startFillColor2="#ef4444"
+              startOpacity={0.1}
+              startOpacity2={0.1}
+              endOpacity={0}
+              endOpacity2={0}
+              areaChart
+              pointerConfig={{
+                pointerStripUptoDataPoint: true,
+                pointerStripColor: 'lightgray',
+                pointerStripWidth: 2,
+                strokeDashArray: [2, 5],
+                pointerColor: AppColors.primary,
+                radius: 4,
+                pointerLabelWidth: 100,
+                pointerLabelHeight: 120,
+                activatePointersOnLongPress: false,
+                autoAdjustPointerLabelPosition: true,
+                pointerLabelComponent: (items: any) => {
+                  const inc = items[0]?.value ?? 0
+                  const exp = items[1]?.value ?? 0
+                  return (
+                     <View style={{
+                        height: 90,
+                        width: 100,
+                        backgroundColor: '#fff',
+                        borderRadius: 12,
+                        justifyContent:'center',
+                        paddingHorizontal:10,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 4,
+                        elevation: 4,
+                     }}>
+                        <Text style={{color: AppColors.gray, fontSize:10, marginBottom:4}}>
+                            {items[0]?.label}
+                        </Text>
+                        <Text style={{color: AppColors.primary, fontWeight:'bold', fontSize:12}}>
+                           + {formatAmount(inc, currencySymbol)}
+                        </Text>
+                        <Text style={{color: '#ef4444', fontWeight:'bold', fontSize:12}}>
+                           - {formatAmount(exp, currencySymbol)}
+                        </Text>
+                     </View>
+                  );
+                },
+              }}
             />
-            <View style={styles.chartLegend}>
-              <View style={[styles.chartLegendDot, { backgroundColor: AppColors.primary }]} />
-              <Text style={styles.chartLegendText}>Income</Text>
-              <View style={[styles.chartLegendDot, { backgroundColor: AppColors.gray }]} />
-              <Text style={styles.chartLegendText}>Expense</Text>
-            </View>
+          </View>
+          
+          <View style={styles.chartLegend}>
+             <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: AppColors.primary }]} />
+                <Text style={styles.legendText}>Income</Text>
+             </View>
+             <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: "#ef4444" }]} />
+                <Text style={styles.legendText}>Expense</Text>
+             </View>
           </View>
         </View>
 
@@ -262,46 +329,13 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>Categories</Text>
-        <View style={styles.categoryList}>
-          {categoryBalances.length === 0 ? (
-            <Text style={styles.emptyHint}>No categories yet</Text>
-          ) : (
-            categoryBalances.slice(0, 6).map((cat) => (
-              <View key={cat.id} style={styles.categoryCard}>
-                <View
-                  style={[
-                    styles.categoryAvatar,
-                    { backgroundColor: (cat.color || AppColors.gray) + "35" },
-                  ]}>
-                  <Text style={styles.categoryAvatarText}>
-                    {cat.name.slice(0, 1).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.categoryInfo}>
-                  <Text style={styles.categoryName}>{cat.name}</Text>
-                  <Text
-                    style={[
-                      styles.categoryBalance,
-                      cat.balance < 0 && styles.categoryBalanceNegative,
-                    ]}>
-                    {cat.balance >= 0 ? "+ " : "− "}
-                    {formatAmount(Math.abs(cat.balance), currencySymbol)}
-                  </Text>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
+        <CategorySpendingCards currencySymbol={currencySymbol} maxCards={6} />
+        <IncomeCategoryCards currencySymbol={currencySymbol} maxCards={6} />
 
         <Text style={styles.sectionTitle}>For you</Text>
         <View style={styles.forYouRow}>
           <View style={styles.forYouCard}>
-            <View
-              style={[
-                styles.forYouIconWrap,
-                { backgroundColor: AppColors.gray + "30" },
-              ]}>
+             <View style={[styles.forYouIconWrap,{ backgroundColor: AppColors.gray + "30" }]}>
               <Text style={styles.forYouIcon}>↓</Text>
             </View>
             <Text style={styles.forYouLabel}>Spending</Text>
@@ -310,11 +344,7 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View style={styles.forYouCard}>
-            <View
-              style={[
-                styles.forYouIconWrap,
-                { backgroundColor: AppColors.primary + "40" },
-              ]}>
+            <View style={[styles.forYouIconWrap,{ backgroundColor: AppColors.primary + "40" }]}>
               <Text style={styles.forYouIcon}>↑</Text>
             </View>
             <Text style={styles.forYouLabel}>Income</Text>
@@ -376,6 +406,36 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  chartHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: AppColors.black,
+  },
+  chartSubtitle: {
+    fontSize: 12,
+    color: AppColors.gray,
+    marginTop: 2,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 12,
+    color: AppColors.gray,
+    fontWeight: "500",
+  },
   center: {
     flex: 1,
     justifyContent: "center",

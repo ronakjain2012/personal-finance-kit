@@ -16,6 +16,7 @@ export type ListTransactionsOptions = {
   status?: string;
   fromDate?: string;
   toDate?: string;
+  addedBy?: string;
   limit?: number;
   offset?: number;
 };
@@ -37,6 +38,7 @@ export async function listTransactions(
   if (options.status) q = q.eq('status', options.status);
   if (options.fromDate) q = q.gte('transaction_date', options.fromDate);
   if (options.toDate) q = q.lte('transaction_date', options.toDate);
+  if (options.addedBy) q = q.eq('added_by', options.addedBy);
   const limit = options.limit ?? 50;
   const offset = options.offset ?? 0;
   q = q.range(offset, offset + limit - 1);
